@@ -1,0 +1,85 @@
+---
+- name: Deploy MariaDB server
+  hosts: mariadb
+  become: yes
+  vars_files:
+    - userpassword.yml
+  vars:
+    mysql_db_name: "guestbook"
+    mysql_user: "GuestReader"
+    mysql_user_password: "{{ mysql_user_password }}"
+    allowed_hosts:
+        - localhost
+        - 10.77.3.3
+  tasks:
+    - name: Update package index
+      apt:
+        update_cache: yes
+      become: yes
+      
+    - name: Install PyMySQL package
+      apt:
+        name: python3-pymysql  # For Python 3
+        state: present
+        
+    - name: Install MariaDB server if not already installed
+      apt:
+        name: mariadb-server
+        state: present
+      register: mariadb_installed
+
+    - name: Load MariaDB service
+      service:
+        name: mariadb
+        state: started
+        enabled: yes
+      when: mariadb_installed.changed
+
+    - name: Copy data.sql file to remote server
+      copy:
+        src: data.sql
+        dest: /tmp/data.sql
+
+    - name: Run SQL script to create database
+      mysql_db:
+        name: "{{ mysql_db_name }}"
+        state: present
+        login_unix_socket: /run/mysqld/mysqld.sock
+      become: yes
+
+    - name: Create database user
+      mysql_user:
+        name: "{{ mysql_user }}"
+        password: "{{ mysql_user_password }}"
+        host: "{{ item }}"
+        priv: "*.*:ALL"
+        state: present
+        login_unix_socket: /run/mysqld/mysqld.sock
+      loop: "{{ allowed_hosts }}"
+      become: yes
+      #when: mariadb_installed.changed
+
+    - name: Load data into MariaDB
+      mysql_db:
+        name: "{{ mysql_db_name }}"
+        state: import
+        target: /tmp/data.sql
+        login_unix_socket: /run/mysqld/mysqld.sock
+      become: yes
+
+    - name: Ensure MariaDB is only accessible on private network interface and localhost
+      lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        line: "{{ item }}"
+        state: present
+        insertafter: '^#?bind-address\s*=\s*127\.0\.0\.1$'
+      with_items:
+        - 'bind-address = 127.0.0.1'
+        - 'bind-address = 10.77.3.3'
+      notify: Restart MariaDB
+
+  handlers:
+    - name: Restart MariaDB
+      service:
+        name: mariadb
+        state: restarted

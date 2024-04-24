@@ -1,0 +1,63 @@
+# deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php-web-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: php-web-server
+  template:
+    metadata:
+      labels:
+        app: php-web-server
+    spec:
+      containers:
+      - name: php-web-server
+        image: sohmc/php-mysqli
+        ports:
+        - containerPort: 80
+        env:
+        - name: MYSQL_HOST
+          value: 10.77.3.3
+        volumeMounts:
+        - name: php-code
+          mountPath: /var/www/html
+      volumes:
+      - name: php-code
+        hostPath:
+          path: /home/applicant
+
+# service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: php-web-server
+spec:
+  selector:
+    app: php-web-server
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+# ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: php-web-ingress
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+spec:
+  rules:
+  - host: amisse-k3s.sagedining.net 
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: php-web-server
+            port:
+              number: 80
