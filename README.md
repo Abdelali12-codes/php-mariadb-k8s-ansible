@@ -1,0 +1,1 @@
+# deploy mariadb using ansible and deploy php app on kubernetes

@@ -28,7 +28,7 @@ spec:
       - name: php-code
         hostPath:
           path: /home/applicant
-
+---
 # service.yaml
 apiVersion: v1
 kind: Service
